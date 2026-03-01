@@ -59,7 +59,7 @@ import de.schildbach.oeffi.R;
 import de.schildbach.oeffi.directions.TripDetailsActivity;
 import de.schildbach.oeffi.directions.navigation.NavigationAlarmManager;
 import de.schildbach.oeffi.directions.navigation.Navigator;
-import de.schildbach.oeffi.directions.navigation.TripRenderer;
+import de.schildbach.oeffi.tripeval.TripRenderer;
 import de.schildbach.oeffi.util.Formats;
 import de.schildbach.oeffi.util.Objects;
 import de.schildbach.oeffi.util.TimeZoneSelector;
@@ -317,27 +317,11 @@ public class OperationNotification {
             if (leg instanceof Trip.Public) {
                 final Trip.Public publeg = (Trip.Public) leg;
                 final JourneyRef journeyRef = publeg.journeyRef;
-                if (journeyRef == null) {
-                    b.append("null");
-                } else if (journeyRef instanceof DbProvider.DbJourneyRef) {
-                    final DbProvider.DbJourneyRef dbJourneyRef = (DbProvider.DbJourneyRef) journeyRef;
-                    b.append(",j=");
-                    b.append(dbJourneyRef.journeyId);
-                    final Line line = dbJourneyRef.line;
-                    b.append(",n=");
-                    b.append(line.network);
-                    b.append(",p=");
-                    b.append(line.product);
-                    b.append(",l=");
-                    b.append(line.label);
-                    b.append(",d=");
-                    b.append(publeg.departureStop.location.id);
-                } else {
-                    b.append(journeyRef);
-                }
+                b.append(" ");
+                b.append(journeyRef == null ? "null" : journeyRef);
             }
         }
-        log.info("OPERATION for TRIP: {}", b);
+        log.info("OPERATION for TRIP:{}", b);
     }
 
     public NetworkId getNetwork() {
@@ -419,12 +403,6 @@ public class OperationNotification {
         String nextRefreshTimeReason;
         final long nextTripReloadTimeMs;
         if (tripRenderer.nextEventEarliestTime != null) {
-            if (tripRenderer.nextEventIsInitialIndividual) {
-                final Trip.Leg firstLeg = trip.legs.isEmpty() ? null : trip.legs.get(0);
-            } else if (tripRenderer.nextEventTypeIsPublic) {
-            } else if (tripRenderer.currentLeg.transferTo != null) {
-            } else {
-            }
             final long timeLeft = tripRenderer.nextEventEarliestTime.getTime() - nowTime;
             if (timeLeft < 240000) {
                 // last 4 minutes and after, 30 secs refresh interval
@@ -463,12 +441,12 @@ public class OperationNotification {
             }
         }
 //nextRefreshTimeMs = nowTime + 30000;
-        final Date timeoutAt = new Date(trip.getLastArrivalTime().getTime() + KEEP_NOTIFICATION_FOR_MINUTES * 60000);
-        final long duration = timeoutAt.getTime() - nowTime;
-        if (duration <= 1000) {
-            remove();
-            return;
-        }
+//        final Date timeoutAt = new Date(trip.getLastArrivalTime().getTime() + KEEP_NOTIFICATION_FOR_MINUTES * 60000);
+//        final long duration = timeoutAt.getTime() - nowTime;
+//        if (duration <= 1000) {
+//            remove();
+//            return;
+//        }
         final RemoteViews notificationLayout = new RemoteViews(context.getPackageName(), R.layout.operation_notification);
         final int backgroundColor = setupNotificationView(notificationLayout, tripRenderer, operationLeg, initialWalkLeg, now);
         // final RemoteViews notificationLayoutExpanded = new RemoteViews(context.getPackageName(), R.layout.operation_notification);
@@ -582,7 +560,7 @@ public class OperationNotification {
                 .setLocalOnly(true)
                 .setUsesChronometer(false)
                 .setWhen(nowTime)
-                .setTimeoutAfter(duration)
+//                .setTimeoutAfter(duration)
                 .setExtras(extras)
                 .addAction(R.drawable.ic_clear_white_24dp, context.getString(R.string.operation_opennav_shownextevent),
                         getPendingActivityIntent(OperationNavigatorActivity.DELETEREQUEST_NOT_REQUESTED,

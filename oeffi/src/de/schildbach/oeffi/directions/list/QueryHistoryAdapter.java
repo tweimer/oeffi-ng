@@ -225,6 +225,7 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
         private final int tripColumn;
         private final int tripIdColumn;
         private final int reloadRequestColumn;
+        private final int stateFlagsColumn;
 
         TripsCursor() {
             super(QueryStoredTripsProvider.CONTENT_URI_BUILDER(network, usage).build());
@@ -253,12 +254,18 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
             tripColumn = cursor.getColumnIndexOrThrow(QueryStoredTripsProvider.KEY_TRIP);
             tripIdColumn = cursor.getColumnIndexOrThrow(QueryStoredTripsProvider.KEY_TRIP_ID);
             reloadRequestColumn = cursor.getColumnIndexOrThrow(QueryStoredTripsProvider.KEY_RELOAD_REQUEST_DATA);
+            stateFlagsColumn = cursor.getColumnIndexOrThrow(QueryStoredTripsProvider.KEY_STATE_FLAGS);
         }
 
         @Override
         protected String getSortOrder() {
-            return "max(0," + refTime + "-" + QueryStoredTripsProvider.KEY_ARRIVAL_TIME + "),"
-                    + QueryStoredTripsProvider.KEY_DEPARTURE_TIME;
+            if (canBeMarkedAsDone) {
+                return QueryStoredTripsProvider.KEY_STATE_FLAGS + " & " + QueryStoredTripsProvider.STATE_FLAG_DONE + ","
+                        + QueryStoredTripsProvider.KEY_DEPARTURE_TIME;
+            } else {
+                return "max(0," + refTime + "-" + QueryStoredTripsProvider.KEY_ARRIVAL_TIME + "),"
+                        + QueryStoredTripsProvider.KEY_DEPARTURE_TIME;
+            }
         }
 
         @Override
@@ -266,7 +273,7 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
             close();
 
             if (refTime > 0 && deleteTripsAfterMillis >= 0) {
-                QueryStoredTripsProvider.deleteOlderTrips(context, network, usage, refTime - deleteTripsAfterMillis);
+                QueryStoredTripsProvider.deleteOlderTrips(context, network, usage, refTime - deleteTripsAfterMillis, canBeMarkedAsDone);
             }
 
             super.requery();
@@ -309,11 +316,13 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
             final byte[] serializedTrip = cursor.getBlob(tripColumn);
             final String tripId = cursor.getString(tripIdColumn);
             final byte[] serializedReloadRequest = QueryStoredTripsProvider.getReloadRequestColumnBlob(cursor, reloadRequestColumn);
+            final int stateFlags = cursor.getInt(stateFlagsColumn);
             holder.bind(rowId,
                     from, to, via,
                     tripDepartureTime, tripArrivalTime,
                     serializedTrip, tripId,
                     serializedReloadRequest,
+                    canBeMarkedAsDone, stateFlags,
                     selectedRowId, clickListener, contextListener);
         }
     }
@@ -323,6 +332,7 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     private final LayoutInflater inflater;
     private final NetworkId network;
     private final String usage;
+    private final boolean canBeMarkedAsDone;
     private final QueryHistoryClickListener clickListener;
     private final ContextListener contextListener;
     private final int historyEntryLayoutId;
@@ -339,6 +349,7 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     public QueryHistoryAdapter(
             final OeffiActivity context,
             final NetworkId network, final String usage,
+            final boolean canBeMarkedAsDone,
             final QueryHistoryClickListener clickListener,
             final int historyEntryLayoutId,
             final ContextListener contextListener,
@@ -350,6 +361,7 @@ public class QueryHistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
         this.inflater = LayoutInflater.from(context);
         this.network = network;
         this.usage = usage;
+        this.canBeMarkedAsDone = canBeMarkedAsDone;
         this.clickListener = clickListener;
         this.contextListener = contextListener;
         this.deleteTripsAfterMillis = deleteTripsAfterMillis;

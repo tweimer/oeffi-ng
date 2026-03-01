@@ -19,12 +19,10 @@ package de.schildbach.oeffi.directions;
 
 import android.Manifest;
 import android.app.ProgressDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Criteria;
-import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -40,6 +38,7 @@ import de.schildbach.oeffi.network.NetworkProviderFactory;
 import de.schildbach.oeffi.util.DialogBuilder;
 import de.schildbach.oeffi.util.GeocoderThread;
 import de.schildbach.oeffi.util.LocationHelper;
+import de.schildbach.oeffi.util.LocationUtils;
 import de.schildbach.oeffi.util.TimeSpec;
 import de.schildbach.pte.NetworkId;
 import de.schildbach.pte.provider.NetworkProvider;
@@ -174,8 +173,8 @@ public class DirectionsShortcutActivity extends OeffiActivity implements Locatio
             }
 
             public void onGeocoderFail(final Exception exception) {
-                final Location location = Location
-                        .coord(Point.fromDouble(here.getLatAsDouble(), here.getLonAsDouble()));
+                final Location location = LocationUtils
+                        .locationFromCoord(Point.fromDouble(here.getLatAsDouble(), here.getLonAsDouble()));
                 query(location);
             }
         });
@@ -204,13 +203,25 @@ public class DirectionsShortcutActivity extends OeffiActivity implements Locatio
             final Accessibility accessibility = application.prefsGetAccessibility();
             final Set<Product> products =  loadProductFilter();
             final TripOptions options = new TripOptions(products, optimize, walkSpeed, minTransferTime, accessibility, null);
-            query(networkProvider, from, to, options);
+
+            // old solution: searches within the DirectionsShortcutActivity
+            // and then switches to the TripsOverviewActivity
+            //    query(networkProvider, from, to, options);
+
+            // new solution: searches within the TripsOverviewActivity
+            final TripsOverviewActivity.RenderConfig newRenderConfig = new TripsOverviewActivity.RenderConfig();
+            newRenderConfig.referenceTime = new TimeSpec.Relative(0);
+            TripsOverviewActivity.start(this,
+                    networkProvider, from, null, to, options, newRenderConfig);
+            finishAndRemoveTask();
         } else {
             errorDialog(R.string.directions_shortcut_error_message_network);
         }
     }
 
-    private void query(final NetworkProvider networkProvider, final Location from, final Location to,
+    private void query(
+            final NetworkProvider networkProvider,
+            final Location from, final Location to,
             final TripOptions options) {
         queryTripsRunnable = new QueryTripsRunnable(getResources(), progressDialog, handler, networkProvider, from,
                 null, to, new TimeSpec.Relative(0), options) {

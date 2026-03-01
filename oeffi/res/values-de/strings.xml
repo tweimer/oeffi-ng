@@ -306,7 +306,7 @@
     <string name="directions_query_history_clear_confirm_button_clear_all">Wirklich alle löschen</string>
     <string name="directions_query_history_clear_confirm_button_clear_non_favorite">Außer Favoriten</string>
     <string name="directions_query_history_clear_confirm_button_cancel">Abbrechen</string>
-    <string name="directions_stored_trip_over_time_left">vorbei</string>
+    <string name="directions_stored_trip_over_or_done">&#x2714;</string>
 
     <!-- query history context menu -->
     <string name="directions_query_history_context_show_trip">Gespeicherte Fahrt anzeigen</string>
@@ -314,6 +314,14 @@
     <string name="directions_query_history_context_remove_entry">Verbindungsanfrage entfernen</string>
     <string name="directions_query_history_context_add_favorite">Anfrage als Favorit markieren</string>
     <string name="directions_query_history_context_remove_favorite">Favorit entfernen</string>
+
+    <!-- query stored trip context menu -->
+    <string name="directions_query_stored_trip_context_search">Alternative Verbindungen suchen</string>
+    <string name="directions_query_stored_trip_context_show">Anzeigen</string>
+    <string name="directions_query_stored_trip_context_navigate">Navigieren</string>
+    <string name="directions_query_stored_trip_context_remove">Löschen</string>
+    <string name="directions_query_stored_trip_context_set_done">Als erledigt markieren</string>
+    <string name="directions_query_stored_trip_context_unset_done">Erledigt-Markierung entfernen</string>
 
     <!-- location selector -->
     <string name="directions_location_selector_context_pin_title">Anheften</string>
@@ -378,9 +386,9 @@
     <string name="directions_trip_details_public_entry_tooltip_label_departure">Abfahrt</string>
     <string name="directions_trip_details_public_entry_tooltip_no_data">-</string>
     <string name="directions_trip_details_public_entry_tooltip_delay_format">%d min</string>
-    <string name="directions_trip_details_public_entry_tooltip_event_format">&lt;b>%s&lt;/b>&lt;br>geplant: %s&lt;br>Prognose: %s&lt;br>Verspätung: %s&lt;br>simuliert: %s&lt;br>sim. Verspätung: %s</string>
-    <string name="directions_trip_details_public_entry_tooltip_format_one_event">&lt;b>&lt;u>%s&lt;/u>&lt;/b>&lt;br>&lt;br>%s</string>
-    <string name="directions_trip_details_public_entry_tooltip_format_two_events">&lt;b>&lt;u>%s&lt;/u>&lt;/b>&lt;br>&lt;br>%s&lt;br>&lt;br>%s</string>
+    <string name="directions_trip_details_public_entry_tooltip_event_format">&lt;b>%1$s&lt;/b>&lt;br>geplant: %2$s&lt;br>Prognose: %3$s&lt;br>Verspätung: %4$s&lt;br>simuliert: %5$s&lt;br>sim. Verspätung: %6$s</string>
+    <string name="directions_trip_details_public_entry_tooltip_format_one_event">&lt;b>&lt;u>%1$s&lt;/u>&lt;/b>&lt;br>&lt;br>%2$s</string>
+    <string name="directions_trip_details_public_entry_tooltip_format_two_events">&lt;b>&lt;u>%1$s&lt;/u>&lt;/b>&lt;br>&lt;br>%2$s&lt;br>&lt;br>%3$s</string>
 
     <string name="directions_trip_details_public_entry_accessibility">Abschnitt ist barrierefrei</string>
     <string name="directions_trip_details_public_entry_bicycle_carriage">Fahrradmitnahme ggf. möglich</string>

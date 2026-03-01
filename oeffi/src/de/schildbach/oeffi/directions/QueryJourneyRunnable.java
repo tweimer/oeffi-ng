@@ -240,12 +240,12 @@ public class QueryJourneyRunnable implements Runnable {
             final Trip.Public journeyLeg = result.journeyLeg;
             journeyLeg.setEntryAndExit(entryLocation, exitLocation);
             if (isOperation) {
-                OperationDetailsActivity.start(
+                OperationDetailsActivity.startOperation(
                         parentActivity,
                         networkProvider.id(), journeyLeg, new Date(),
                         openInNewWindow ? Intent.FLAG_ACTIVITY_NEW_TASK : 0);
             } else {
-                TripDetailsActivity.start(
+                TripDetailsActivity.startJourney(
                         parentActivity,
                         networkProvider.id(), journeyLeg, new Date(),
                         openInNewWindow ? Intent.FLAG_ACTIVITY_NEW_TASK : 0);

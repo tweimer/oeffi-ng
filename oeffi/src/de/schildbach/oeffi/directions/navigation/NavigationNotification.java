@@ -65,6 +65,7 @@ import de.schildbach.oeffi.Application;
 import de.schildbach.oeffi.OeffiActivity;
 import de.schildbach.oeffi.R;
 import de.schildbach.oeffi.directions.TripDetailsActivity;
+import de.schildbach.oeffi.tripeval.TripRenderer;
 import de.schildbach.oeffi.util.ClockUtils;
 import de.schildbach.oeffi.util.Formats;
 import de.schildbach.oeffi.util.Objects;
@@ -737,6 +738,7 @@ public class NavigationNotification {
             if (leg instanceof Trip.Public) {
                 final Trip.Public publeg = (Trip.Public) leg;
                 final JourneyRef journeyRef = publeg.journeyRef;
+                b.append(" ");
                 if (journeyRef == null) {
                     b.append("null");
                 } else if (journeyRef instanceof DbProvider.DbJourneyRef) {
@@ -757,7 +759,7 @@ public class NavigationNotification {
                 }
             }
         }
-        log.info("NOTIFICATION for TRIP: {}", b);
+        log.info("NOTIFICATION for TRIP:{}", b);
     }
 
     public NetworkId getNetwork() {
@@ -1683,8 +1685,8 @@ public class NavigationNotification {
 
     @SuppressLint("StringFormatMatches")
     private String platformForSpeakText(final boolean sayOn, final Position prevPosition, final Position newPosition) {
-        final String prevText = prevPosition == null ? null : prevPosition.toString();
-        final String newText = newPosition == null ? null : newPosition.toString();
+        final String prevText = makeSpeakablePlatformName(prevPosition);
+        final String newText = makeSpeakablePlatformName(newPosition);
         if (prevPosition == null) {
             if (newPosition == null)
                 return "";
@@ -1706,6 +1708,12 @@ public class NavigationNotification {
                         ? R.string.navigation_event_speak_position_on_changed_format
                         : R.string.navigation_event_speak_position_to_changed_format,
                 newText, prevText);
+    }
+
+    private String makeSpeakablePlatformName(final Position position) {
+        if (position == null)
+            return null;
+        return removeDisturbingInterpunctuationFromSpeakableName(position.toString());
     }
 
     private String platformForNotificationMessage(final Position prevPosition, final Position newPosition) {
@@ -1885,7 +1893,7 @@ public class NavigationNotification {
                         ? R.string.navigation_event_speak_transfer_start_same_station
                         : R.string.navigation_event_speak_transfer_start,
                 makeSpeakableLineName(line, departureLeg.destination, stop.location),
-                locationName,
+                makeSpeakableLocationName(locationName),
                 platformForSpeakText(true, stop.plannedDeparturePosition, stop.getDeparturePosition()),
                 timesForSpeakText(plannedTimeString, predictedTimeString, predictedTime.getTime() - plannedTime.getTime()),
                 remainingTimeForSpeakTextAtEnd(timeLeftMs)));
@@ -1915,7 +1923,7 @@ public class NavigationNotification {
                 locationName)));
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_transfer_still_running,
-                locationName));
+                makeSpeakableLocationName(locationName)));
         if (isEventNotificationsEnabled) {
             newEventNotifications.add(EventNotificationData.directionsEvent(context.getString(
                     R.string.navigation_event_notify_transfer_still_running,
@@ -1934,6 +1942,7 @@ public class NavigationNotification {
         final Location originLocation = arrivalLeg == null ? null : arrivalLeg.departure;
         final Position departurePosition = departureLeg.getDeparturePosition();
         final String arrivalLocationName = Formats.fullLocationNameIfDifferentPlace(arrivalLocation, originLocation);
+        final String speakableArrivalLocationName = makeSpeakableLocationName(arrivalLocationName);
         final String departureLocationName = Formats.fullLocationNameIfDifferentPlace(departureLocation, arrivalLocation);
         final Line departureLine = departureLeg.line;
         final String speakableDestination = makeSpeakableDestination(departureLine, departureLocationName);
@@ -1942,7 +1951,7 @@ public class NavigationNotification {
             if (departurePosition != null) {
                 newSpeakTexts.add(context.getString(
                         R.string.navigation_event_speak_transfer_preview_same_location,
-                        arrivalLocationName,
+                        speakableArrivalLocationName,
                         speakableDestination,
                         platformForSpeakText(false, departureLeg.departureStop.plannedDeparturePosition, departurePosition),
                         transferTimeForSpeakText(tripRenderer)));
@@ -1959,7 +1968,7 @@ public class NavigationNotification {
             if (departurePosition != null) {
                 newSpeakTexts.add(context.getString(
                         R.string.navigation_event_speak_transfer_preview_different_location,
-                        arrivalLocationName,
+                        speakableArrivalLocationName,
                         speakableDestination,
                         platformForSpeakText(false, departureLeg.departureStop.plannedDeparturePosition, departurePosition),
                         transferTimeForSpeakText(tripRenderer)));
@@ -1974,7 +1983,7 @@ public class NavigationNotification {
             } else {
                 newSpeakTexts.add(context.getString(
                         R.string.navigation_event_speak_transfer_preview_different_location_no_position,
-                        arrivalLocationName,
+                        speakableArrivalLocationName,
                         speakableDestination,
                         transferTimeForSpeakText(tripRenderer)));
                 if (isEventNotificationsEnabled && outputNotification) {
@@ -1996,11 +2005,12 @@ public class NavigationNotification {
         final Location departureLocation = finalWalkLeg.departure;
         final Location arrivalLocation = finalWalkLeg.arrival;
         final String arrivalLocationName = Formats.fullLocationNameIfDifferentPlace(arrivalLocation, departureLocation);
+        final String speakableArrivalLocationName = makeSpeakableLocationName(arrivalLocationName);
         final String speakableDestination = makeSpeakableDestination(null, arrivalLocationName);
         final String notificationDestination = makeNotificationDestination(null, arrivalLocationName);
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_transfer_preview_different_location_no_position,
-                arrivalLocationName,
+                speakableArrivalLocationName,
                 speakableDestination,
                 ""));
         if (isEventNotificationsEnabled && outputNotification) {
@@ -2020,7 +2030,7 @@ public class NavigationNotification {
                 locationName)));
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_final_transfer_start,
-                locationName));
+                makeSpeakableLocationName(locationName)));
         if (isEventNotificationsEnabled) {
             newEventNotifications.add(EventNotificationData.directionsEvent(context.getString(
                     R.string.navigation_event_notify_final_transfer_start,
@@ -2063,7 +2073,7 @@ public class NavigationNotification {
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_public_leg_start,
                 makeSpeakableLineName(line, publicLeg.destination, publicLeg.departureStop.location),
-                locationName,
+                makeSpeakableLocationName(locationName),
                 platformForSpeakText(true, stop.plannedArrivalPosition, stop.getArrivalPosition()),
                 timesForSpeakText(plannedTimeString, predictedTimeString, predictedTime.getTime() - plannedTime.getTime()),
                 remainingTimeForSpeakTextAtEnd(timeLeftMs)));
@@ -2091,7 +2101,7 @@ public class NavigationNotification {
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_public_leg_still_running,
                 makeSpeakableLineName(line, publicLeg.destination, publicLeg.departureStop.location),
-                locationName));
+                makeSpeakableLocationName(locationName)));
         if (isEventNotificationsEnabled) {
             newEventNotifications.add(EventNotificationData.directionsEvent(context.getString(
                     R.string.navigation_event_notify_public_leg_still_running,
@@ -2107,7 +2117,7 @@ public class NavigationNotification {
                 locationName)));
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_public_leg_end,
-                locationName));
+                makeSpeakableLocationName(locationName)));
         if (isEventNotificationsEnabled) {
             newEventNotifications.add(EventNotificationData.directionsEvent(context.getString(
                     R.string.navigation_event_notify_public_leg_end,
@@ -2184,7 +2194,7 @@ public class NavigationNotification {
         newSpeakTexts.add(context.getString(
                 R.string.navigation_event_speak_public_leg_end_reminder,
                 remainingTimeForSpeakText(timeLeftMs),
-                locationName,
+                makeSpeakableLocationName(locationName),
                 platformForSpeakText(true, stop.plannedDeparturePosition, stop.getDeparturePosition()),
                 timesForSpeakText(plannedTimeString, predictedTimeString, predictedTime.getTime() - plannedTime.getTime())));
         final int notificationEnabled = getReminderNotificationEnabled(timeLeftMs);
@@ -2474,7 +2484,8 @@ public class NavigationNotification {
             }
             speakableLineName = builder.toString();
         }
-        final String destinationName = Formats.fullLocationNameIfDifferentPlace(destination, refLocation);
+        final String destinationName = makeSpeakableLocationName(
+                Formats.fullLocationNameIfDifferentPlace(destination, refLocation));
         return context.getString(R.string.navigation_event_speak_linename,
                 speakableProduct.isEmpty() ? "" : (speakableProduct + " "),
                 speakableLineName,
@@ -2524,6 +2535,16 @@ public class NavigationNotification {
                 speakableDestinationFormatResId == null
                         ? R.string.navigation_event_speak_to_destination
                         : speakableDestinationFormatResId,
-                destinationName);
+                makeSpeakableLocationName(destinationName));
+    }
+
+    private String makeSpeakableLocationName(final String locationName) {
+        if (locationName == null)
+            return null;
+        return removeDisturbingInterpunctuationFromSpeakableName(locationName);
+    }
+
+    private String removeDisturbingInterpunctuationFromSpeakableName(final String name) {
+        return name.replaceAll("[,.][ .]*", " ");
     }
 }

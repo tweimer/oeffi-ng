@@ -41,6 +41,7 @@ import de.schildbach.oeffi.R;
 import de.schildbach.oeffi.util.Formats;
 import de.schildbach.oeffi.util.TimeSpec;
 import de.schildbach.oeffi.util.TimeZoneSelector;
+import de.schildbach.pte.NetworkId;
 import de.schildbach.pte.dto.PTDate;
 import de.schildbach.pte.dto.Trip;
 
@@ -167,13 +168,11 @@ public class TripsGallery extends Gallery {
 
         setOnHierarchyChangeListener(new OnHierarchyChangeListener() {
             public void onChildViewRemoved(final View parent, final View child) {
-                handler.removeCallbacksAndMessages(null);
-                handler.post(onChildViewChangedRunnable);
+                postOnChildViewChangedRunnable(false);
             }
 
             public void onChildViewAdded(final View parent, final View child) {
-                handler.removeCallbacksAndMessages(null);
-                handler.post(onChildViewChangedRunnable);
+                postOnChildViewChangedRunnable(false);
             }
         });
     }
@@ -185,91 +184,117 @@ public class TripsGallery extends Gallery {
 
     public void setTrips(
             final List<TripInfo> trips,
+            final NetworkId networkId, final String storedTripsUsage,
             final boolean canScrollLater, final boolean canScrollEarlier,
             final boolean showAccessibility, final boolean showBicycleCarriage,
             final int maxWalkDistance) {
-        adapter.setTrips(trips, canScrollLater, canScrollEarlier, showAccessibility, showBicycleCarriage, maxWalkDistance);
+        adapter.setTrips(
+                trips,
+                networkId, storedTripsUsage,
+                canScrollLater, canScrollEarlier,
+                showAccessibility, showBicycleCarriage,
+                maxWalkDistance);
     }
 
     public void setOnScrollListener(final OnScrollListener onScrollListener) {
         this.onScrollListener = onScrollListener;
     }
 
-    private final Runnable onChildViewChangedRunnable = new Runnable() {
-        public void run() {
-            final long currentTime = System.currentTimeMillis();
-            final int first = getFirstVisiblePosition();
-            final int last = getLastVisiblePosition();
+    @Override
+    public void invalidate() {
+        adapter.notifyDataSetChanged();
+        super.invalidate();
+    }
 
-            // determine min/max time
-            long minTime = Long.MAX_VALUE;
-            long maxTime = 0;
+    private boolean onChildViewChangedRunnableAlreadyPosted;
 
-            for (int index = first; index <= last; index++) {
-                try {
-                    final TripInfo tripInfo = adapter.getItem(index);
-                    if (tripInfo != null) {
-                        final Trip trip = tripInfo.trip;
-                        final PTDate tripMinTime = trip.getMinTime();
-                        if (tripMinTime != null && tripMinTime.getTime() < minTime)
-                            minTime = tripMinTime.getTime();
+    private void postOnChildViewChangedRunnable(final boolean delayed) {
+        if (onChildViewChangedRunnableAlreadyPosted)
+            return;
+        onChildViewChangedRunnableAlreadyPosted = true;
+        handler.removeCallbacksAndMessages(null);
+        if (delayed)
+            handler.postDelayed(this::onChildViewChanged, 20);
+        else
+            handler.post(this::onChildViewChanged);
+    }
 
-                        final PTDate tripMaxTime = trip.getMaxTime();
-                        if (tripMaxTime != null && tripMaxTime.getTime() > maxTime)
-                            maxTime = tripMaxTime.getTime();
-                    }
-                } catch (IllegalStateException ise) {
-                    log.error("cannot get adapter item at position {}, first={}, last={}", index, first, last, ise);
-                    // ignore and continue
+    public void onChildViewChanged() {
+        final long currentTime = System.currentTimeMillis();
+        final int first = getFirstVisiblePosition();
+        final int last = getLastVisiblePosition();
+
+        // determine min/max time
+        long minTime = Long.MAX_VALUE;
+        long maxTime = 0;
+
+        for (int index = first; index <= last; index++) {
+            try {
+                final TripInfo tripInfo = adapter.getItem(index);
+                if (tripInfo != null) {
+                    final Trip trip = tripInfo.trip;
+                    final PTDate tripMinTime = trip.getMinTime();
+                    if (tripMinTime != null && tripMinTime.getTime() < minTime)
+                        minTime = tripMinTime.getTime();
+
+                    final PTDate tripMaxTime = trip.getMaxTime();
+                    if (tripMaxTime != null && tripMaxTime.getTime() > maxTime)
+                        maxTime = tripMaxTime.getTime();
                 }
+            } catch (final IllegalStateException ise) {
+                log.error("cannot get adapter item at position {}, first={}, last={}", index, first, last, ise);
+                // ignore and continue
             }
-
-            // snap to current time
-            if (minTime == Long.MAX_VALUE || (currentTime > minTime - DateUtils.MINUTE_IN_MILLIS * 30 && currentTime < minTime))
-                minTime = currentTime;
-            else if (maxTime == 0 || (currentTime < maxTime + DateUtils.MINUTE_IN_MILLIS * 30 && currentTime > maxTime))
-                maxTime = currentTime;
-
-            // padding
-            final long timeDiff = maxTime - minTime;
-            long timePadding = timeDiff / 12;
-            if (timeDiff < DateUtils.MINUTE_IN_MILLIS * 30) // zoom limit
-                timePadding = (DateUtils.MINUTE_IN_MILLIS * 30 - timeDiff) / 2;
-            if (timePadding < DateUtils.MINUTE_IN_MILLIS) // minimum padding
-                timePadding = DateUtils.MINUTE_IN_MILLIS;
-            minTime = minTime - timePadding;
-            maxTime = maxTime + timePadding;
-
-            // animate
-            final long currentMinTime = adapter.getMinTime();
-            final long currentMaxTime = adapter.getMaxTime();
-
-            if (currentMinTime != 0 || currentMaxTime != 0) {
-                final long diffMin = minTime - currentMinTime;
-                final long diffMax = maxTime - currentMaxTime;
-
-                if (Math.abs(diffMin) > DateUtils.SECOND_IN_MILLIS * 10
-                        || Math.abs(diffMax) > DateUtils.SECOND_IN_MILLIS * 10) {
-                    minTime = currentMinTime + diffMin / 5;
-                    maxTime = currentMaxTime + diffMax / 5;
-
-                    handler.postDelayed(this, 20); // 50 fps
-                }
-            }
-
-            adapter.setMinMaxTimes(minTime, maxTime);
-
-            // refresh views
-            invalidate();
-            final int childCount = getChildCount();
-            for (int i = 0; i < childCount; i++)
-                getChildAt(i).invalidate();
-
-            // notify listener
-            if (onScrollListener != null)
-                onScrollListener.onScroll();
         }
-    };
+
+        // snap to current time
+        if (minTime == Long.MAX_VALUE || (currentTime > minTime - DateUtils.MINUTE_IN_MILLIS * 30 && currentTime < minTime))
+            minTime = currentTime;
+        else if (maxTime == 0 || (currentTime < maxTime + DateUtils.MINUTE_IN_MILLIS * 30 && currentTime > maxTime))
+            maxTime = currentTime;
+
+        // padding
+        final long timeDiff = maxTime - minTime;
+        long timePadding = timeDiff / 12;
+        if (timeDiff < DateUtils.MINUTE_IN_MILLIS * 30) // zoom limit
+            timePadding = (DateUtils.MINUTE_IN_MILLIS * 30 - timeDiff) / 2;
+        if (timePadding < DateUtils.MINUTE_IN_MILLIS) // minimum padding
+            timePadding = DateUtils.MINUTE_IN_MILLIS;
+        minTime = minTime - timePadding;
+        maxTime = maxTime + timePadding;
+
+        // animate
+        final long currentMinTime = adapter.getMinTime();
+        final long currentMaxTime = adapter.getMaxTime();
+
+        if (currentMinTime != 0 || currentMaxTime != 0) {
+            final long diffMin = currentMinTime - minTime;
+            final long diffMax = maxTime - currentMaxTime;
+
+            if (Math.abs(diffMin) > DateUtils.SECOND_IN_MILLIS * 10
+                    || Math.abs(diffMax) > DateUtils.SECOND_IN_MILLIS * 10) {
+                minTime = currentMinTime - diffMin / 5;
+                maxTime = currentMaxTime + diffMax / 5;
+
+                onChildViewChangedRunnableAlreadyPosted = false;
+                postOnChildViewChangedRunnable(true);
+            }
+        }
+
+        adapter.setMinMaxTimes(minTime, maxTime);
+
+        // refresh views
+        super.invalidate(); // -- invalidate(); -- no! causes recursion
+        final int childCount = getChildCount();
+        for (int i = 0; i < childCount; i++)
+            getChildAt(i).invalidate();
+
+        // notify listener
+        if (onScrollListener != null)
+            onScrollListener.onScroll();
+
+        onChildViewChangedRunnableAlreadyPosted = false;
+    }
 
     private final Calendar gridPtr = new GregorianCalendar();
     private final Rect bounds = new Rect();

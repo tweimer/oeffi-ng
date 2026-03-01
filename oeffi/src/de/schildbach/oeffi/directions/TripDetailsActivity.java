@@ -88,14 +88,14 @@ import de.schildbach.oeffi.MyActionBar;
 import de.schildbach.oeffi.OeffiActivity;
 import de.schildbach.oeffi.R;
 import de.schildbach.oeffi.TripAware;
-import de.schildbach.oeffi.directions.navigation.TripGeoUtils;
+import de.schildbach.oeffi.tripeval.TripGeoUtils;
 import de.schildbach.oeffi.util.GoogleMapsUtils;
 import de.schildbach.oeffi.util.HorizontalPager;
 import de.schildbach.oeffi.util.KmlProducer;
 import de.schildbach.oeffi.util.PopupHelper;
 import de.schildbach.oeffi.util.TimeSpec;
 import de.schildbach.oeffi.util.TimeSpec.DepArr;
-import de.schildbach.oeffi.directions.navigation.TripRenderer;
+import de.schildbach.oeffi.tripeval.TripRenderer;
 import de.schildbach.oeffi.directions.navigation.TripNavigatorActivity;
 import de.schildbach.oeffi.network.NetworkProviderFactory;
 import de.schildbach.oeffi.stations.LineView;
@@ -136,7 +136,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
@@ -187,38 +186,17 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         }
     }
 
-    public static void start(
+    public static void startJourney(
             final Context context,
             final NetworkId network,
             final Trip.Public journeyLeg,
             final Date loadedAt,
             final int intentFlags) {
-        start(TripDetailsActivity.class,
-                context, network, journeyLeg, false, loadedAt, intentFlags);
-    }
-
-    protected static void start(
-            final Class<? extends TripDetailsActivity> activityClass,
-            final Context context,
-            final NetworkId network,
-            final Trip.Public journeyLeg,
-            final boolean isOperation,
-            final Date loadedAt,
-            final int intentFlags) {
-        final Trip trip = new Trip(
-                loadedAt,
-                null,
-                null,
-                journeyLeg.departure,
-                journeyLeg.arrival,
-                Collections.singletonList(journeyLeg),
-                null,
-                null,
-                null);
+        final Trip trip = TripUtils.createTripFromJourney(loadedAt, journeyLeg);
         final RenderConfig renderConfig = new RenderConfig();
         renderConfig.isJourney = true;
-        renderConfig.isOperation = isOperation;
-        final Intent intent = buildStartIntent(activityClass, context, network, trip, renderConfig);
+        renderConfig.isOperation = false;
+        final Intent intent = buildStartIntent(TripDetailsActivity.class, context, network, trip, renderConfig);
         intent.addFlags(intentFlags);
         context.startActivity(intent);
     }
@@ -511,8 +489,6 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
 //        }
         addActionBarButtons();
 
-        findViewById(R.id.directions_trip_details_not_feasible).setVisibility(tripRenderer.isFeasible() ? View.GONE : View.VISIBLE);
-
         legsScrollView = findViewById(R.id.directions_trip_details_legs_scroll);
         legsGroup = findViewById(R.id.directions_trip_details_legs_group);
 
@@ -552,6 +528,44 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                 return tripRenderer.trip;
             }
 
+            @Override
+            public int getNumberOfLegs() {
+                return tripRenderer.legs.size();
+            }
+
+            @Override
+            public LegInfo getLegInfo(final int legIndex) {
+                return new LegInfo() {
+                    @Override
+                    public boolean isPublicLeg() {
+                        final TripRenderer.LegContainer legC = tripRenderer.legs.get(legIndex);
+                        return legC.publicLeg != null;
+                    }
+
+                    @Override
+                    public Trip.Leg getLeg() {
+                        final TripRenderer.LegContainer legC = tripRenderer.legs.get(legIndex);
+                        final Trip.Individual individualLeg = legC.individualLeg;
+                        if (individualLeg != null)
+                            return individualLeg;
+                        return legC.publicLeg;
+                    }
+
+                    @Override
+                    public List<Point> getPath() {
+                        final TripRenderer.LegContainer legC = tripRenderer.legs.get(legIndex);
+                        final Trip.Individual individualLeg = legC.individualLeg;
+                        if (individualLeg != null)
+                            return TripGeoUtils.getPathForLeg(individualLeg);
+
+                        final Trip.Public publicLeg = legC.publicLeg;
+                        if (publicLeg == null)
+                            return null;
+                        return TripGeoUtils.getPathForLegStops(publicLeg);
+                    }
+                };
+            }
+
             public void selectLeg(final int partIndex) {
                 selectedLegIndex = partIndex;
                 getMapView().zoomToAll();
@@ -561,11 +575,9 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                 return selectedLegIndex != -1;
             }
 
-            public boolean isSelectedLeg(final Trip.Leg part) {
-                if (!hasSelection())
-                    return false;
-
-                return tripRenderer.legs.get(selectedLegIndex).equals(part);
+            @Override
+            public boolean isSelectedLeg(final int legIndex) {
+                return selectedLegIndex == legIndex;
             }
         });
 
@@ -632,6 +644,16 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         return R.layout.navigation_next_event_trip;
     }
 
+    @Override
+    protected void setMapVisible(final boolean visible) {
+        if (!isShowingItinerary()) {
+            super.setMapVisible(true);
+            setShowPage(Page.ITINERARY);
+        } else {
+            super.setMapVisible(visible);
+        }
+    }
+
     private boolean keepDisplayOn;
 
     protected void setMustKeepDisplayOn(final boolean keepDisplayOn) {
@@ -693,7 +715,7 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                 final Trip trip = tripRenderer.trip;
                 QueryStoredTripsProvider.put(getContentResolver(),
                         network, getStoredTripsUsage(),
-                        trip, renderConfig.queryTripsRequestData);
+                        trip, renderConfig.queryTripsRequestData, 0);
                 startNavigation(trip, renderConfig);
             };
         }
@@ -721,27 +743,48 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                     R.string.directions_trip_details_action_start_routing);
             navigateButton.setOnClickListener(navigationClickListener);
         }
+
+        if (!isDriverMode && application.isDriverMode()
+                && renderConfig.isJourney && !renderConfig.isOperation) {
+            // action to open journey as operation
+            final ImageButton openOperationButton = actionBar.addButton(
+                    R.drawable.ic_operation_white_24dp,
+                    R.string.operation_open_journey_as_operation);
+            openOperationButton.setOnClickListener(v -> {
+                final Trip.Public journeyLeg = tripRenderer.trip.getFirstPublicLeg();
+                if (journeyLeg != null) {
+                    queryJourneyRunnable = QueryJourneyRunnable.startShowJourney(
+                            this, v, queryJourneyRunnable,
+                            handler, backgroundHandler,
+                            network, journeyLeg.journeyRef,
+                            true,
+                            journeyLeg.departure, journeyLeg.arrival,
+                            false);
+                }
+            });
+        }
     }
 
     protected void addBookmarkActionBarButton() {
         final String tripId = tripRenderer.trip.getUniqueId();
         if (tripId != null) {
             final ToggleImageButton bookmarkButton = actionBar.addToggleButton(
-                    R.drawable.ic_boomark_white_24dp,
+                    R.drawable.ic_bookmark_white_24dp,
                     R.string.directions_trip_details_action_bookmark);
             final Long rowId = QueryStoredTripsProvider.getRowId(getContentResolver(),
                     network, getStoredTripsUsage(), tripId);
             bookmarkButton.setChecked(rowId != null);
             bookmarkButton.setOnCheckedChangeListener((v, isChecked) -> {
                 final Trip trip = tripRenderer.trip;
-                if (isChecked)
+                if (isChecked) {
                     QueryStoredTripsProvider.put(getContentResolver(),
                             network, getStoredTripsUsage(),
-                            trip, renderConfig.queryTripsRequestData);
-                else
+                            trip, renderConfig.queryTripsRequestData, 0);
+                } else {
                     QueryStoredTripsProvider.delete(getContentResolver(),
                             network, getStoredTripsUsage(),
                             trip.getUniqueId());
+                }
             });
         }
     }
@@ -776,7 +819,7 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         @Override
         public void run() {
             fastRefreshIntervalMs = getPeriodicUpdateIntervalMs();
-            updateGuiIfApplicable();
+            updateGuiIfApplicable(false);
             if (fastRefreshIntervalMs > 0) {
                 requestLocationUpdates(fastRefreshIntervalMs);
                 handler.postDelayed(this, fastRefreshIntervalMs);
@@ -794,7 +837,7 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         tickReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(final Context context, final Intent intent) {
-                updateGuiIfApplicable();
+                updateGuiIfApplicable(false);
             }
         };
         registerReceiver(tickReceiver, new IntentFilter(Intent.ACTION_TIME_TICK));
@@ -806,12 +849,12 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         return true;
     }
 
-    private boolean updateGuiIfApplicable() {
+    private boolean updateGuiIfApplicable(final boolean force) {
         if (isPaused)
             return false;
-        if (checkAutoRefresh())
-            updateGUI();
-        return true;
+        if (!checkAutoRefresh() && !force)
+            return false;
+        return updateGUI();
     }
 
     protected long getPeriodicUpdateIntervalMs() {
@@ -875,6 +918,10 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
             setShowPage(R.id.directions_trip_details_list_frame);
         else
             super.onBackPressedEvent();
+    }
+
+    protected boolean isShowingItinerary() {
+        return viewPager.getCurrentView().getId() == R.id.directions_trip_details_list_frame;
     }
 
     protected boolean isShowingNextEvent() {
@@ -952,7 +999,7 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
 
     @Override
     public void onLocationChanged(@NonNull final android.location.Location location) {
-        final Point newDeviceLocation = LocationHelper.locationToPoint(location);
+        final Point newDeviceLocation = Point.fromDouble(location.getLatitude(), location.getLongitude());
         final Double bearingDegrees;
         if (location.hasBearing()) {
             bearingDegrees = Double.valueOf(location.getBearing());
@@ -968,7 +1015,7 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         }
         final Double speedMetersPerSecond = location.hasSpeed() ? (double) location.getSpeed() : null;
         updateDeviceLocationDependencies(newDeviceLocation, bearingDegrees, speedMetersPerSecond, new Date());
-        updateGuiIfApplicable();
+        updateGuiIfApplicable(true);
     }
 
     @Override
@@ -1038,6 +1085,9 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
         updateDeviceLocationDependencies(deviceLocation, deviceBearingDegrees, deviceSpeedMetersPerSecond, now);
         updateHighlightedTime(now);
         updateDeveloperInfo();
+
+        findViewById(R.id.directions_trip_details_not_feasible).setVisibility(
+                tripRenderer.isFeasible() ? View.GONE : View.VISIBLE);
 
         TripRenderer.LegContainer currentLeg = null;
         int i = LEGSGROUP_INSERT_INDEX;
@@ -1330,9 +1380,7 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                         network, leg.journeyRef, false, leg.departure, leg.arrival,
                         mustOpenActivityInNewTask());
             };
-            lineView.setClickable(true);
             lineView.setOnClickListener(onClickListener);
-            destinationView.setClickable(true);
             destinationView.setOnClickListener(onClickListener);
         }
 
@@ -2028,6 +2076,18 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
             explainView.setVisibility(View.GONE);
         }
 
+        final TextView distanceView = findViewById(R.id.navigation_next_event_time_distance);
+        final Stop nextEventArrivalStop = tripRenderer.nextEventArrivalStop;
+        final Point locationCoord = nextEventArrivalStop == null ? null : nextEventArrivalStop.location.coord;
+        final Point deviceCoord = getDeviceLocation();
+        if (locationCoord != null && deviceCoord != null) {
+            distanceView.setVisibility(View.VISIBLE);
+            distanceView.setText(Formats.formatDistance(
+                    TripGeoUtils.geoDistanceInMeters(locationCoord, deviceCoord), true));
+        } else {
+            distanceView.setVisibility(View.GONE);
+        }
+
         final TextView targetView = findViewById(R.id.navigation_next_event_target);
         if (tripRenderer.nextEventTargetName != null) {
             targetView.setText(tripRenderer.nextEventTargetName);
@@ -2587,8 +2647,11 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                 && pearlType != PearlView.Type.DEPARTURE_FOR_INTERMEDIATE_ARRIVAL
                 && pearlType != PearlView.Type.ARRIVAL_FOR_INTERMEDIATE_DEPARTURE) {
             collapseColumns.collapsePositionColumn = false;
-            final SpannableStringBuilder positionStr = new SpannableStringBuilder(position.name);
+            final SpannableStringBuilder positionStr = new SpannableStringBuilder(
+                    Formats.makeBreakablePositionName(position.name)
+                            .replace('\u200B', '\n'));
             if (position.section != null) {
+                positionStr.append('\n');
                 final int sectionStart = positionStr.length();
                 positionStr.append(position.section);
                 positionStr.setSpan(new RelativeSizeSpan(0.85f), sectionStart, positionStr.length(),
@@ -2612,8 +2675,9 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
             final StringBuilder builder = new StringBuilder();
             builder.append(Formats.formatTimeSpanMorS(remainingTime, false));
             if (locationCoord != null && deviceCoord != null) {
-                builder.append(String.format("   %.1f km",
-                        TripGeoUtils.geoDistanceInMeters(locationCoord, deviceCoord) / 1000.0));
+                builder.append("  ");
+                builder.append(Formats.formatDistance(
+                        TripGeoUtils.geoDistanceInMeters(locationCoord, deviceCoord), true));
             }
             remainingView.setText(builder.toString());
         } else {
@@ -3128,16 +3192,11 @@ public class TripDetailsActivity extends OeffiActivity implements LocationListen
                 journeyLeg.message,
                 journeyLeg.journeyRef, journeyLeg.loadedAt);
         leg.setPath(journeyLeg.getPath());
-        final Trip journeyTrip = new Trip(
+        final Trip journeyTrip = TripUtils.createTripFromJourney(
                 tripRenderer.trip.loadedAt,
-                null,
-                null,
+                leg,
                 entryLocation,
-                exitLocation,
-                Collections.singletonList(leg),
-                null,
-                null,
-                0);
+                exitLocation);
         final RenderConfig navigationRenderConfig = new RenderConfig();
         navigationRenderConfig.isJourney = true;
         navigationRenderConfig.isOperation = renderConfig.isOperation;

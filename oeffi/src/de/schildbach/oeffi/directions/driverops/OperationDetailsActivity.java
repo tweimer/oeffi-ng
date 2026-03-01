@@ -29,35 +29,43 @@ import android.widget.ImageView;
 import android.widget.TableRow;
 import android.widget.TextView;
 
-import java.util.Collections;
 import java.util.Date;
 
+import de.schildbach.oeffi.Constants;
 import de.schildbach.oeffi.R;
 import de.schildbach.oeffi.directions.QueryStoredTripsProvider;
 import de.schildbach.oeffi.directions.TripDetailsActivity;
-import de.schildbach.oeffi.directions.navigation.TripRenderer;
+import de.schildbach.oeffi.directions.TripUtils;
+import de.schildbach.oeffi.stations.LineView;
+import de.schildbach.oeffi.tripeval.TripGeoUtils;
+import de.schildbach.oeffi.tripeval.TripRenderer;
 import de.schildbach.oeffi.network.NetworkProviderFactory;
 import de.schildbach.oeffi.stations.StationDetailsActivity;
 import de.schildbach.oeffi.util.Formats;
-import de.schildbach.oeffi.util.ViewUtils;
 import de.schildbach.pte.NetworkId;
 import de.schildbach.pte.dto.JourneyRef;
 import de.schildbach.pte.dto.Location;
 import de.schildbach.pte.dto.PTDate;
+import de.schildbach.pte.dto.Point;
 import de.schildbach.pte.dto.Stop;
 import de.schildbach.pte.dto.Trip;
 import de.schildbach.pte.provider.NetworkProvider;
 
 public class OperationDetailsActivity extends TripDetailsActivity {
 
-    public static void start(
+    public static void startOperation(
             final Context context,
             final NetworkId network,
             final Trip.Public journeyLeg,
             final Date loadedAt,
             final int intentFlags) {
-        start(OperationDetailsActivity.class,
-                context, network, journeyLeg, true, loadedAt, intentFlags);
+        final Trip trip = TripUtils.createTripFromJourney(loadedAt, journeyLeg);
+        final RenderConfig renderConfig = new RenderConfig();
+        renderConfig.isJourney = true;
+        renderConfig.isOperation = true;
+        final Intent intent = buildStartIntent(OperationDetailsActivity.class, context, network, trip, renderConfig);
+        intent.addFlags(intentFlags);
+        context.startActivity(intent);
     }
 
     private int colorTimeGood, colorTimeEarly, colorTimeDelay;
@@ -78,18 +86,11 @@ public class OperationDetailsActivity extends TripDetailsActivity {
     @Override
     protected void startNavigationForJourneyToExit(final Stop exitStop) {
         final Trip.Public journeyLeg = (Trip.Public) tripRenderer.trip.legs.get(0);
-        final Location entryLocation = journeyLeg.entryLocation;
-        final Location exitLocation = exitStop.location;
-        final Trip journeyTrip = new Trip(
+        final Trip journeyTrip = TripUtils.createTripFromJourney(
                 tripRenderer.trip.loadedAt,
-                null,
-                null,
-                entryLocation,
-                exitLocation,
-                Collections.singletonList(journeyLeg),
-                null,
-                null,
-                0);
+                journeyLeg,
+                journeyLeg.entryLocation,
+                exitStop.location);
         final RenderConfig navigationRenderConfig = new RenderConfig();
         navigationRenderConfig.isJourney = true;
         navigationRenderConfig.isOperation = true;
@@ -97,10 +98,10 @@ public class OperationDetailsActivity extends TripDetailsActivity {
 
         // QueryStoredTripsProvider.put(getContentResolver(),
         //         network, getStoredTripsUsage(),
-        //         tripRenderer.trip, renderConfig.queryTripsRequestData);
+        //         tripRenderer.trip, renderConfig.queryTripsRequestData, 0);
         QueryStoredTripsProvider.put(getContentResolver(),
                 network, getStoredTripsUsage(),
-                journeyTrip, renderConfig.queryTripsRequestData);
+                journeyTrip, renderConfig.queryTripsRequestData, 0);
     }
 
     @Override
@@ -307,6 +308,7 @@ public class OperationDetailsActivity extends TripDetailsActivity {
         if (legsScrollFocusView == null)
             legsScrollFocusView = row;
 
+        row.setOnClickListener(view -> setShowPage(R.id.navigation_next_event));
         return row;
     }
 
@@ -398,6 +400,7 @@ public class OperationDetailsActivity extends TripDetailsActivity {
         if (legsScrollFocusView == null)
             legsScrollFocusView = row;
 
+        row.setOnClickListener(view -> setShowPage(R.id.navigation_next_event));
         return row;
     }
 
@@ -455,6 +458,14 @@ public class OperationDetailsActivity extends TripDetailsActivity {
 
         // final Trip.Public operationLeg = operationLegC.publicLeg;
         final Trip.Public simulatedLeg = operationLegC.simulatedPublicLeg;
+
+        final LineView lineView = findViewById(R.id.operation_next_event_line);
+        lineView.setLine(simulatedLeg.line);
+        final TextView destinationView = findViewById(R.id.operation_next_event_destination);
+        destinationView.setText(Constants.DESTINATION_ARROW_PREFIX
+                + Formats.makeBreakableStationName(Formats.fullLocationName(
+                        simulatedLeg.destination)));
+
         final boolean sectionIsAfterNearestStop = operationLegC.sectionIsAfterNearestStop;
         final boolean isAtNearestStop = operationLegC.isAtNearestStop;
         final double sectionRelation = operationLegC.sectionRelation;
@@ -543,8 +554,12 @@ public class OperationDetailsActivity extends TripDetailsActivity {
                     R.id.operation_next_event_nearest_station_arrival_delay_sec);
             final TextView planTimeView = containerView.findViewById(R.id.operation_next_event_nearest_station_arrival_plan_time);
             setPlanTime(planTimeView, false, nearestStop.plannedArrivalTime, otherTextColor);
-            final TextView remainingView = containerView.findViewById(R.id.operation_next_event_nearest_station_arrival_remaining);
-            setRemaining(remainingView, nearestStop.getArrivalTime().getTime() - now, otherTextColor);
+            setRemaining(
+                    containerView.findViewById(R.id.operation_next_event_nearest_station_arrival_remaining),
+                    nearestStop.getArrivalTime().getTime() - now,
+                    containerView.findViewById(R.id.operation_next_event_nearest_station_arrival_distance),
+                    nearestStop.location.coord,
+                    otherTextColor);
 
             if (isNextAction) {
                 nearestArrivalView.setBackgroundColor(color);
@@ -580,8 +595,11 @@ public class OperationDetailsActivity extends TripDetailsActivity {
                     R.id.operation_next_event_nearest_station_departure_delay_sec);
             final TextView planTimeView = containerView.findViewById(R.id.operation_next_event_nearest_station_departure_plan_time);
             setPlanTime(planTimeView, true, nearestStop.plannedDepartureTime, otherTextColor);
-            final TextView remainingView = containerView.findViewById(R.id.operation_next_event_nearest_station_departure_remaining);
-            setRemaining(remainingView, nearestStop.getDepartureTime().getTime() - now, otherTextColor);
+            setRemaining(
+                    containerView.findViewById(R.id.operation_next_event_nearest_station_departure_remaining),
+                    nearestStop.getDepartureTime().getTime() - now,
+                    null, null,
+                    otherTextColor);
 
             if (isNextAction) {
                 nearestDepartureView.setBackgroundColor(color);
@@ -615,8 +633,12 @@ public class OperationDetailsActivity extends TripDetailsActivity {
                     R.id.operation_next_event_next_station_arrival_delay_sec);
             final TextView planTimeView = containerView.findViewById(R.id.operation_next_event_next_station_arrival_plan_time);
             setPlanTime(planTimeView, false, nextStop.plannedArrivalTime, otherTextColor);
-            final TextView remainingView = containerView.findViewById(R.id.operation_next_event_next_station_arrival_remaining);
-            setRemaining(remainingView, nextStop.getArrivalTime().getTime() - now, otherTextColor);
+            setRemaining(
+                    containerView.findViewById(R.id.operation_next_event_next_station_arrival_remaining),
+                    nextStop.getArrivalTime().getTime() - now,
+                    containerView.findViewById(R.id.operation_next_event_next_station_arrival_distance),
+                    nextStop.location.coord,
+                    otherTextColor);
 
             final TextView nextStopNameView = containerView.findViewById(R.id.operation_next_event_next_station_name);
             final TextView nextStopPlaceView = containerView.findViewById(R.id.operation_next_event_next_station_place);
@@ -659,9 +681,18 @@ public class OperationDetailsActivity extends TripDetailsActivity {
     protected void setRemaining(
             final TextView remainingView,
             final long timeSpan,
+            final TextView distanceView,
+            final Point locationCoord,
             final int textColor) {
         remainingView.setText(isShowRemaining() ? Formats.formatTimeSpanMS(timeSpan, false) : null);
         remainingView.setTextColor(textColor);
+
+        if (distanceView != null) {
+            final Point deviceCoord = getDeviceLocation();
+            distanceView.setText(!(isShowRemaining() && locationCoord != null && deviceCoord != null) ? null
+                    : Formats.formatDistance(TripGeoUtils.geoDistanceInMeters(locationCoord, deviceCoord), false));
+            distanceView.setTextColor(textColor);
+        }
     }
 
     protected TripDetailsActivity.StopClickListener newStopClickListener(

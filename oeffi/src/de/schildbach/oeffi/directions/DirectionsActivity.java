@@ -41,7 +41,6 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -605,7 +604,7 @@ public class DirectionsActivity extends OeffiMainActivity implements
                     && intentExtraText.startsWith(GoogleMapsUtils.GMAPS_SHORT_LOCATION_URL_PREFIX)) {
                 // location shared from Google Maps app
                 if (isSharingTo && viewFromLocation.getLocation() == null) {
-                    viewFromLocation.acquireLocation();
+                    viewFromLocation.setToCurrentLocation();
                 }
                 backgroundHandler.post(() -> {
                     final Location location = GoogleMapsUtils.resolveLocationUrl(intentExtraText);
@@ -630,7 +629,7 @@ public class DirectionsActivity extends OeffiMainActivity implements
                         if (isSharingTo) {
                             viewToLocation.setLocation(location);
                             if (viewFromLocation.getLocation() == null)
-                                viewFromLocation.acquireLocation();
+                                viewFromLocation.setToCurrentLocation();
                         } else {
                             viewFromLocation.setLocation(location);
                         }
@@ -859,7 +858,7 @@ public class DirectionsActivity extends OeffiMainActivity implements
             deleteTripsAfterMillis = -1;
         }
         queryHistoryListAdapter = new QueryHistoryAdapter(this,
-                network, getStoredTripsUsage(),
+                network, getStoredTripsUsage(), getStoredTripsCanBeMarkedAsDone(),
                 this, getHistoryEntryLayoutId(),
                 this, deleteTripsAfterMillis, maxHistoryEntries,
                 getUpcomingStoredTripsTimeLimitMs());
@@ -912,13 +911,16 @@ public class DirectionsActivity extends OeffiMainActivity implements
     }
 
     private boolean initProductToggles() {
-        final Collection<Product> defaultProducts = loadProductFilter();
+        return initProductToggles(loadProductFilter());
+    }
+
+    private boolean initProductToggles(final Collection<Product> setProducts) {
         for (final ToggleImageButton view : viewProductToggles) {
             final Product product = Product.fromCode(((String) view.getTag()).charAt(0));
-            final boolean checked = defaultProducts.contains(product);
+            final boolean checked = setProducts.contains(product);
             view.setChecked(checked);
         }
-        return !productsAreNetworkDefault(defaultProducts);
+        return !productsAreNetworkDefault(setProducts);
     }
 
     private Set<Product> getProductToggles() {
@@ -1012,8 +1014,11 @@ public class DirectionsActivity extends OeffiMainActivity implements
             viewTime1.setVisibility(View.VISIBLE);
             viewTime1.setText(diff == 0 ? getString(R.string.time_now)
                     : getString(R.string.directions_time_relative, Formats.formatTimeDiff(this, diff)));
-            viewTime1.setOnClickListener(diffClickListener);
             viewTime1.setOnLongClickListener(v -> {
+                handleDiffClick();
+                return true;
+            });
+            viewTime1.setOnClickListener(v -> {
                 if (timeSpec instanceof TimeSpec.Relative) {
                     // set to depart at ...
                     timeSpec = new TimeSpec.Absolute(DepArr.DEPART, timeSpec.timeInMillis());
@@ -1025,7 +1030,6 @@ public class DirectionsActivity extends OeffiMainActivity implements
                     timeSpec = new TimeSpec.Relative(DepArr.DEPART, 0);
                 }
                 updateGUI();
-                return true;
             });
             viewTime2.setVisibility(View.GONE);
         }
@@ -1126,8 +1130,6 @@ public class DirectionsActivity extends OeffiMainActivity implements
         calendar.setTimeInMillis(((TimeSpec.Absolute) timeSpec).timeMs);
         return calendar;
     }
-
-    private final OnClickListener diffClickListener = v -> handleDiffClick();
 
     private void handleDiffClick() {
         final int[] relativeTimeValues = getResources().getIntArray(R.array.directions_set_time_relative);
@@ -1418,12 +1420,22 @@ public class DirectionsActivity extends OeffiMainActivity implements
     }
 
     @Override
-    public boolean onQueryStoredTripContextMenuItemClick(
+    public void onSearchAgainClick(
             final int adapterPosition,
-            final Location from, final Location to, final Location via,
-            @Nullable final byte[] serializedSavedTrip, final int menuItemId,
-            @Nullable final Location menuItemLocation) {
-        return false;
+            final PTDate tripDepartureTime, final PTDate tripArrivalTime,
+            final QueryTripsRunnable.TripRequestData reloadRequest) {
+        viewFromLocation.setLocation(reloadRequest.from);
+        viewToLocation.setLocation(reloadRequest.to);
+        viewViaLocation.setLocation(reloadRequest.via);
+        if (reloadRequest.dep)
+            timeSpec = new TimeSpec.Absolute(DepArr.DEPART, tripDepartureTime.getTime());
+        else
+            timeSpec = new TimeSpec.Absolute(DepArr.ARRIVE, tripArrivalTime.getTime());
+        final TripOptions tripOptions = reloadRequest.options;
+        if (tripOptions != null)
+            initProductToggles(tripOptions.products);
+        updateGUI();
+        handleGo();
     }
 
     @Override
@@ -1440,23 +1452,29 @@ public class DirectionsActivity extends OeffiMainActivity implements
         if (menuItemId == R.id.directions_query_history_context_show_trip) {
             handleShowSavedTrip(from, to, via, null, null, serializedSavedTrip, null, null);
             return true;
-        } else if (menuItemId == R.id.directions_query_history_context_remove_trip) {
+        }
+        if (menuItemId == R.id.directions_query_history_context_remove_trip) {
             queryHistoryListAdapter.setSavedTrip(adapterPosition, 0, 0, null);
             return true;
-        } else if (menuItemId == R.id.directions_query_history_context_remove_entry) {
+        }
+        if (menuItemId == R.id.directions_query_history_context_remove_entry) {
             queryHistoryListAdapter.removeEntry(adapterPosition);
             ViewUtils.setVisibility(viewQueryHistoryEmpty, queryHistoryListAdapter.getItemCount() == 0);
             return true;
-        } else if (menuItemId == R.id.directions_query_history_context_add_favorite) {
+        }
+        if (menuItemId == R.id.directions_query_history_context_add_favorite) {
             queryHistoryListAdapter.setIsFavorite(adapterPosition, true);
             return true;
-        } else if (menuItemId == R.id.directions_query_history_context_remove_favorite) {
+        }
+        if (menuItemId == R.id.directions_query_history_context_remove_favorite) {
             queryHistoryListAdapter.setIsFavorite(adapterPosition, false);
             return true;
-        } else if (menuItemId == R.id.directions_query_history_location_context_details && menuItemLocation != null) {
+        }
+        if (menuItemId == R.id.directions_query_history_location_context_details && menuItemLocation != null) {
             StationDetailsActivity.start(this, network, menuItemLocation, null, null);
             return true;
-        } else if (menuItemId == R.id.directions_query_history_location_context_add_favorite
+        }
+        if (menuItemId == R.id.directions_query_history_location_context_add_favorite
                 && menuItemLocation != null) {
             FavoriteUtils.persist(getContentResolver(), FavoriteStationsProvider.TYPE_FAVORITE, network,
                     menuItemLocation);
@@ -1464,17 +1482,18 @@ public class DirectionsActivity extends OeffiMainActivity implements
                     menuItemLocation.uniqueShortName());
             queryHistoryListAdapter.notifyDataSetChanged();
             return true;
-        } else if (menuItemId == R.id.directions_query_history_location_context_launcher_shortcut
+        }
+        if (menuItemId == R.id.directions_query_history_location_context_launcher_shortcut
                 && menuItemLocation != null) {
             StationContextMenu.createLauncherShortcutDialog(DirectionsActivity.this, network, menuItemLocation).show();
             return true;
-        } else if (menuItemId == R.id.station_map_context_maps_internal && menuItemLocation != null) {
+        }
+        if (menuItemId == R.id.station_map_context_maps_internal && menuItemLocation != null) {
             setMapVisible(true);
             getMapView().zoomToStations(List.of(menuItemLocation), 0);
             return true;
-        } else {
-            return false;
         }
+        return false;
     }
 
     private void handleReuseQuery(final Location from, final Location to, final Location via) {
@@ -1584,6 +1603,10 @@ public class DirectionsActivity extends OeffiMainActivity implements
         return null;
     }
 
+    protected boolean getStoredTripsCanBeMarkedAsDone() {
+        return false;
+    }
+
     protected int getHistoryEntryLayoutId() {
         return Application.getInstance().getSharedPreferences()
                 .getBoolean(Constants.PREFS_KEY_HISTORY_ENTRY_SHOW_TRIP, false)
@@ -1638,6 +1661,22 @@ public class DirectionsActivity extends OeffiMainActivity implements
             flags.add(TripFlag.BIKE);
 
         final TripOptions options = getTripOptionsFromPrefs(products, flags.isEmpty() ? null : flags);
+
+        // old solution: searches within the DirectionsShortcutActivity
+        // and then switches to the TripsOverviewActivity
+        //    query(networkProvider, from, via, to, options);
+
+        // new solution: searches within the TripsOverviewActivity
+        final TripsOverviewActivity.RenderConfig newRenderConfig = Objects.clone(renderConfig);
+        newRenderConfig.referenceTime = timeSpec;
+        setupTripsOverviewRenderConfig(newRenderConfig);
+        TripsOverviewActivity.start(this, networkProvider, from, via, to, options, newRenderConfig);
+    }
+
+    private void query(
+            final NetworkProvider networkProvider,
+            final Location from, final Location via, final Location to,
+            final TripOptions options) {
         queryTripsRunnable = new MyQueryTripsRunnable(networkProvider, from, via, to, timeSpec, options) {
             @Override
             protected void onPreExecute() {
