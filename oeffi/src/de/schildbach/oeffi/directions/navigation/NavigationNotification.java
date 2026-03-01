@@ -2435,10 +2435,8 @@ public class NavigationNotification {
 
     private String makeNotificationLineName(final Line line, final Location destination, final Location refLocation) {
         final String destinationName = Formats.fullLocationNameIfDifferentPlace(destination, refLocation);
-        final Integer notificationProductResId = notificationProducts.get(line.product);
-        final String notificationProduct = context.getString(notificationProductResId == null
-                ? R.string.navigation_event_notify_product_unknown
-                : notificationProductResId);
+        final Integer notificationProductResId = notificationProducts.getOrDefault(line.product, R.string.navigation_event_notify_product_unknown);
+        final String notificationProduct = context.getString(notificationProductResId);
         return (notificationProduct.isEmpty() ? "" : (notificationProduct + " "))
                 + line.label + "->" + destinationName;
     }
@@ -2458,10 +2456,8 @@ public class NavigationNotification {
     }
 
     private String makeSpeakableLineName(final Line line, final Location destination, final Location refLocation) {
-        final Integer speakableProductResId = speakableProducts.get(line.product);
-        final String speakableProduct = context.getString(speakableProductResId == null
-                ? R.string.navigation_event_speak_product_unknown
-                : speakableProductResId);
+        final Integer speakableProductResId = speakableProducts.getOrDefault(line.product, R.string.navigation_event_speak_product_unknown);
+        final String speakableProduct = context.getString(speakableProductResId);
         final String speakableLineName;
         final String lineName = line.label;
         if (lineName == null || lineName.isEmpty()) {
@@ -2507,12 +2503,8 @@ public class NavigationNotification {
     }
 
     private String makeNotificationDestination(final Line line, final String destinationName) {
-        final Integer notificationDestinationFormatResId = line == null ? null : notificationDestinations.get(line.product);
-        return context.getString(
-                notificationDestinationFormatResId == null
-                        ? R.string.navigation_event_notify_to_destination
-                        : notificationDestinationFormatResId,
-                destinationName);
+        final Integer notificationDestinationFormatResId = line == null ? null : notificationDestinations.getOrDefault(line.product, R.string.navigation_event_notify_to_destination);
+        return context.getString(notificationDestinationFormatResId, destinationName);
     }
 
     private static final Map<Product, Integer> speakableDestinations = new HashMap<>();
@@ -2530,12 +2522,8 @@ public class NavigationNotification {
     }
 
     private String makeSpeakableDestination(final Line line, final String destinationName) {
-        final Integer speakableDestinationFormatResId = line == null ? null : speakableDestinations.get(line.product);
-        return context.getString(
-                speakableDestinationFormatResId == null
-                        ? R.string.navigation_event_speak_to_destination
-                        : speakableDestinationFormatResId,
-                makeSpeakableLocationName(destinationName));
+        final Integer speakableDestinationFormatResId = line == null ? null : speakableDestinations.getOrDefault(line.product, R.string.navigation_event_speak_to_destination);
+        return context.getString(speakableDestinationFormatResId, makeSpeakableLocationName(destinationName));
     }
 
     private String makeSpeakableLocationName(final String locationName) {
