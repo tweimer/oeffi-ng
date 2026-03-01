@@ -54,7 +54,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2409,7 +2409,7 @@ public class NavigationNotification {
         return (isNegative ? "-" : positivePrefix) + Long.toString(minutes) + " " + context.getString(R.string.time_minutes);
     }
 
-    private static final Map<Product, Integer> notificationProducts = new HashMap<>();
+    private static final Map<Product, Integer> notificationProducts = new EnumMap<>(Product.class);
     static {
         notificationProducts.put(Product.HIGH_SPEED_TRAIN, R.string.navigation_event_notify_product_highspeed_train);
         notificationProducts.put(Product.REGIONAL_TRAIN, R.string.navigation_event_notify_product_regional_train);
@@ -2433,7 +2433,7 @@ public class NavigationNotification {
                 + line.label + "->" + destinationName;
     }
 
-    private static final Map<Product, Integer> speakableProducts = new HashMap<>();
+    private static final Map<Product, Integer> speakableProducts = new new EnumMap<>(Product.class);
     static {
         speakableProducts.put(Product.HIGH_SPEED_TRAIN, R.string.navigation_event_speak_product_highspeed_train);
         speakableProducts.put(Product.REGIONAL_TRAIN, R.string.navigation_event_speak_product_regional_train);
@@ -2481,7 +2481,7 @@ public class NavigationNotification {
                 destinationName);
     }
 
-    private static final Map<Product, Integer> notificationDestinations = new HashMap<>();
+    private static final Map<Product, Integer> notificationDestinations = new EnumMap<>(Product.class);
     static {
         notificationDestinations.put(Product.HIGH_SPEED_TRAIN, R.string.navigation_event_notify_to_station_highspeed_train);
         notificationDestinations.put(Product.REGIONAL_TRAIN, R.string.navigation_event_notify_to_station_regional_train);
@@ -2504,7 +2504,7 @@ public class NavigationNotification {
                 destinationName);
     }
 
-    private static final Map<Product, Integer> speakableDestinations = new HashMap<>();
+    private static final Map<Product, Integer> speakableDestinations = new EnumMap<>(Product.class);
     static {
         speakableDestinations.put(Product.HIGH_SPEED_TRAIN, R.string.navigation_event_speak_to_station_highspeed_train);
         speakableDestinations.put(Product.REGIONAL_TRAIN, R.string.navigation_event_speak_to_station_regional_train);
