@@ -38,13 +38,10 @@ public final class Objects {
 
     public static byte[] serialize(final Serializable object) {
         if (object == null) return null;
-        try {
-            final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            final ObjectOutputStream oos = new ObjectOutputStream(bos);
+        try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             final ObjectOutputStream oos = new ObjectOutputStream(bos)) {
             oos.writeObject(object);
-            final byte[] bytes = bos.toByteArray();
-            oos.close();
-            return bytes;
+            return bos.toByteArray();
         } catch (final IOException x) {
             throw new RuntimeException(x);
         }
@@ -65,15 +62,15 @@ public final class Objects {
         final Deflater deflater = new Deflater();
         deflater.setInput(bytes);
         deflater.finish();
-        final ByteArrayOutputStream os = new ByteArrayOutputStream();
-        final byte[] buffer = new byte[1024];
-        while (!deflater.finished()) {
-            final int compressedSize = deflater.deflate(buffer);
-            os.write(buffer, 0, compressedSize);
+        try (final ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            final byte[] buffer = new byte[1024];
+            while (!deflater.finished()) {
+                final int compressedSize = deflater.deflate(buffer);
+                os.write(buffer, 0, compressedSize);
+            }
+            final byte[] compressed = os.toByteArray();
+            return Base64.encodeToString(compressed, Base64.NO_WRAP);
         }
-        os.close();
-        final byte[] compressed = os.toByteArray();
-        return Base64.encodeToString(compressed, Base64.NO_WRAP);
     }
 
     public static Object deserialize(final byte[] bytes) {
@@ -82,11 +79,8 @@ public final class Objects {
 
     public static Object deserialize(final byte[] bytes, final boolean returnNullOnFailure) {
         if (bytes == null || bytes.length == 0) return null;
-        try {
-            final ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes));
-            final Object obj = ois.readObject();
-            ois.close();
-            return obj;
+        try (final ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+            return ois.readObject();
         } catch (final ClassNotFoundException | IOException x) {
             if (returnNullOnFailure)
                 return null;
@@ -104,17 +98,17 @@ public final class Objects {
         final byte[] compressed = Base64.decode(requireNonNull(base64), Base64.DEFAULT);
         final Inflater inflater = new Inflater();
         inflater.setInput(compressed);
-        final ByteArrayOutputStream os = new ByteArrayOutputStream();
-        final byte[] buffer = new byte[1024];
-        while (!inflater.finished()) {
-            if (inflater.needsInput())
-                throw new DataFormatException("incomplete zip data");
-            final int decompressedSize = inflater.inflate(buffer);
-            os.write(buffer, 0, decompressedSize);
+        try (final ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            final byte[] buffer = new byte[1024];
+            while (!inflater.finished()) {
+                if (inflater.needsInput())
+                    throw new DataFormatException("incomplete zip data");
+                final int decompressedSize = inflater.inflate(buffer);
+                os.write(buffer, 0, decompressedSize);
+            }
+            inflater.end();
+            return os.toByteArray();
         }
-        os.close();
-        inflater.end();
-        return os.toByteArray();
     }
 
     public static Object deserializeFromCompressedString(final String base64) throws Exception {
