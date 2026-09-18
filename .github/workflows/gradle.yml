@@ -40,9 +40,14 @@ jobs:
     - name: Make Gradle wrapper executable
       working-directory: androidstudio
       run: chmod +x gradlew
-
-    - name: Build with Gradle Wrapper
+    - name: Build unsigned release APK
       working-directory: androidstudio
       env:
-       OEFFI_NG_JKS_PASSWORD: ${{ secrets.OEFFI_NG_JKS_PASSWORD }}
-      run: ./gradlew assembleNgDebug
+        OEFFI_NG_JKS_PASSWORD: ${{ secrets.OEFFI_NG_JKS_PASSWORD }}
+      run: ./gradlew assembleNgUnsignedRelease
+
+    - name: Upload unsigned APK
+      uses: actions/upload-artifact@v7
+      with:
+        name: oeffi-ng-unsigned-release
+        path: androidstudio/oeffi-studio/build/outputs/apk/ng/unsignedRelease/*.apk
