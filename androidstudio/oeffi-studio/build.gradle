@@ -148,7 +148,7 @@ android {
     buildTypes {
         configureEach {
             minifyEnabled false
-            signingConfig = signingConfigs.oeffi_ng
+//            signingConfig = signingConfigs.oeffi_ng
         }
         debug {
             debuggable true
