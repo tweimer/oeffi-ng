@@ -43,4 +43,6 @@ jobs:
 
     - name: Build with Gradle Wrapper
       working-directory: androidstudio
+      env:
+       OEFFI_NG_JKS_PASSWORD: ${{ secrets.OEFFI_NG_JKS_PASSWORD }}
       run: ./gradlew assembleNgDebug
