@@ -7,6 +7,8 @@ including delays and replacement bus service for more and more transport authori
 
 [![Java CI with Gradle](/actions/workflows/gradle.yml/badge.svg)](/actions/workflows/gradle.yml)
 
+[![Java CI with Gradle](https://github.com/tweimer/oeffi-ng/actions/workflows/gradle.yml/badge.svg)](https://github.com/tweimer/oeffi-ng/actions/workflows/gradle.yml)
+
 **A lot of new features** have been added in this fork and continue to be added. Stay tuned!
 See details in the [Wiki](https://github.com/santawho/oeffi-ng/wiki).
 
