@@ -148,7 +148,6 @@ android {
     buildTypes {
         configureEach {
             minifyEnabled false
-//            signingConfig = signingConfigs.oeffi_ng
         }
         debug {
             debuggable true
@@ -160,24 +159,28 @@ android {
             resValue "bool", "flags_no_update_check", "true"
         }
         preRelease {
+              signingConfig = signingConfigs.oeffi_ng
 //            minifyEnabled true
 //            shrinkResources false
 //            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         mainRelease {
+              signingConfig = signingConfigs.oeffi_ng
 //            minifyEnabled true
 //            shrinkResources false
 //            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         release {
+              signingConfig = signingConfigs.oeffi_ng
 //            minifyEnabled true
 //            shrinkResources false
 //            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         releaseWithProguard {
+              signingConfig = signingConfigs.oeffi_ng
 //            minifyEnabled true
 //            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+              proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
