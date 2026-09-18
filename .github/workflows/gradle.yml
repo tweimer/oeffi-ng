@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     steps:
-    - name: Checkout sources
+    - name: Checkout sources with submodules
       uses: actions/checkout@v7
       with:
         submodules: recursive
@@ -43,6 +43,4 @@ jobs:
 
     - name: Build with Gradle Wrapper
       working-directory: androidstudio
-      env:
-       OEFFI_NG_JKS_PASSWORD: ${{ secrets.OEFFI_NG_JKS_PASSWORD }}
       run: ./gradlew assembleNgDebug
