@@ -40,6 +40,7 @@ jobs:
     - name: Make Gradle wrapper executable
       working-directory: androidstudio
       run: chmod +x gradlew
+      
     - name: Build unsigned release APK
       working-directory: androidstudio
       env:
