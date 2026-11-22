@@ -9,7 +9,7 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: [ "nextgen" ]
+    branches: [ "Nextgen-2" ]
   pull_request:
     branches: [ "nextgen" ]
 
@@ -40,12 +40,21 @@ jobs:
     - name: Grant execute permission for gradlew
       working-directory: androidstudio
       run: chmod +x gradlew
-
+      
+    - name: Run unit tests
+      run: ./gradlew testNgDevReleaseUnitTest
+      
     - name: Build unsigned release APK
       working-directory: androidstudio
       env:
         OEFFI_NG_JKS_PASSWORD: ${{secrets.OEFFI_NG_JKS_PASSWORD}}
       run: ./gradlew assembleNgDevDebug
+
+    - name: Build unsigned release APK
+      working-directory: androidstudio
+      env:
+        OEFFI_NG_JKS_PASSWORD: ${{secrets.OEFFI_NG_JKS_PASSWORD}}
+      run: ./gradlew test
 
     - name: Upload unsigned APK
       uses: actions/upload-artifact@v7
