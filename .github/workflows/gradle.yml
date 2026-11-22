@@ -43,7 +43,7 @@ jobs:
       
     - name: Run unit tests
       working-directory: androidstudio
-      run: ./gradlew testNgDevReleaseUnitTest
+      run: ./gradlew testNgDevDebugUnitTest
       
     - name: Build unsigned release APK
       working-directory: androidstudio
